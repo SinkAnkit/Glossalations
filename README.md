@@ -2,6 +2,8 @@
 
 A multilingual translation web app with real-time voice transcription, OCR, conversation mode, and audio playback.
 
+**Live Demo:** https://glossalations.onrender.com
+
 ## Features
 
 - Text translation with auto-detected source language
