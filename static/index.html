@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glossalations</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0e1116">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </div>
+            <div class="sidebar-brand">Glossalations</div>
+            <p class="sidebar-caption">Breaking language barriers, one phrase at a time.</p>
+            <hr class="divider">
+            <nav class="sidebar-nav">
+                <a href="/" class="active">Translate</a>
+                <a href="/conversation">Conversation</a>
+            </nav>
+            <p class="sidebar-footer">Powered by Google Translate</p>
+        </aside>
+
+        <main class="content">
+            <h1 class="page-title">Glossalations</h1>
+            <p class="page-subtitle">Multilingual translation with audio playback</p>
+
+            <nav class="tabs">
+                <button class="tab active" data-tab="text">Text</button>
+                <button class="tab" data-tab="pdf">PDF</button>
+                <button class="tab" data-tab="clip">Voice Clip</button>
+                <button class="tab" data-tab="ocr">Image/OCR</button>
+                <button class="tab" data-tab="live">Live</button>
+            </nav>
+
+            <!-- TEXT TAB -->
+            <section class="tab-panel active" id="panel-text">
+                <div class="two-col">
+                    <div class="col">
+                        <p class="label">Source text</p>
+                        <textarea id="textInput" placeholder="Type or paste text here..." rows="6"></textarea>
+                        <div class="char-count" id="textCharCount">0 chars · 0 words</div>
+                    </div>
+                    <div class="col">
+                        <p class="label">Target language</p>
+                        <select id="textLang"></select>
+                    </div>
+                </div>
+                <button class="btn-primary full-width" id="textTranslateBtn">Translate</button>
+                <div id="textSkeleton" class="hidden">
+                    <div class="skeleton skeleton-block"></div>
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+                <div id="textResult" class="result-area hidden">
+                    <p class="label">Detected language</p>
+                    <div id="textDetected"></div>
+                    <p class="label">Translation</p>
+                    <div class="result-actions">
+                        <button class="btn-icon" id="textCopyBtn">Copy</button>
+                        <button class="btn-icon" id="textDownloadBtn">Download</button>
+                    </div>
+                    <div class="success-box" id="textTranslation"></div>
+                    <div class="romanized-box hidden" id="textRomanized"></div>
+                    <audio id="textAudio" controls class="audio-player"></audio>
+                </div>
+                <div class="history-panel" id="textHistory"></div>
+            </section>
+
+            <!-- PDF TAB -->
+            <section class="tab-panel" id="panel-pdf">
+                <div class="two-col">
+                    <div class="col">
+                        <p class="label">Upload PDF</p>
+                        <input type="file" id="pdfFile" accept=".pdf" class="file-input">
+                    </div>
+                    <div class="col">
+                        <p class="label">Target language</p>
+                        <select id="pdfLang"></select>
+                    </div>
+                </div>
+                <button class="btn-primary full-width" id="pdfTranslateBtn">Translate Document</button>
+                <div id="pdfSkeleton" class="hidden">
+                    <div class="skeleton skeleton-block"></div>
+                    <div class="skeleton skeleton-block"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+                <div id="pdfResult" class="result-area hidden">
+                    <p class="label">Extracted text</p>
+                    <div class="text-box" id="pdfOriginal"></div>
+                    <p class="label">Translation</p>
+                    <div class="result-actions">
+                        <button class="btn-icon" id="pdfCopyBtn">Copy</button>
+                        <button class="btn-icon" id="pdfDownloadBtn">Download</button>
+                    </div>
+                    <div class="success-box" id="pdfTranslation"></div>
+                    <div class="romanized-box hidden" id="pdfRomanized"></div>
+                    <audio id="pdfAudio" controls class="audio-player"></audio>
+                </div>
+            </section>
+
+            <!-- VOICE CLIP TAB -->
+            <section class="tab-panel" id="panel-clip">
+                <div class="two-col" style="align-items:start">
+                    <div class="col">
+                        <p class="label">Record audio</p>
+                        <div class="clip-controls" style="margin-bottom:20px">
+                            <button class="btn-primary" id="clipRecordBtn">Record</button>
+                            <span class="status-text" id="clipStatus">Ready</span>
+                        </div>
+                        <p class="label">Or upload a file</p>
+                        <input type="file" id="clipFile" accept="audio/*" class="file-input">
+                    </div>
+                    <div class="col">
+                        <p class="label">Target language</p>
+                        <select id="clipLang"></select>
+                    </div>
+                </div>
+                <audio id="clipPlayback" controls class="audio-player hidden" style="margin-top:16px"></audio>
+                <button class="btn-primary full-width" style="margin-top:24px" id="clipTranslateBtn">Transcribe and Translate</button>
+                <div id="clipSkeleton" class="hidden">
+                    <div class="skeleton skeleton-block"></div>
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+                <div id="clipResult" class="result-area hidden">
+                    <p class="label">Transcript</p>
+                    <div class="info-box" id="clipTranscript"></div>
+                    <p class="label">Translation</p>
+                    <div class="result-actions">
+                        <button class="btn-icon" id="clipCopyBtn">Copy</button>
+                        <button class="btn-icon" id="clipDownloadBtn">Download</button>
+                    </div>
+                    <div class="success-box" id="clipTranslation"></div>
+                    <div class="romanized-box hidden" id="clipRomanized"></div>
+                    <audio id="clipAudio" controls class="audio-player"></audio>
+                </div>
+            </section>
+
+            <!-- IMAGE/OCR TAB -->
+            <section class="tab-panel" id="panel-ocr">
+                <div class="two-col">
+                    <div class="col">
+                        <p class="label">Upload image</p>
+                        <input type="file" id="ocrFile" accept="image/*" class="file-input">
+                        <img id="ocrPreview" class="image-preview hidden" alt="Preview">
+                    </div>
+                    <div class="col">
+                        <p class="label">Target language</p>
+                        <select id="ocrLang"></select>
+                    </div>
+                </div>
+                <button class="btn-primary full-width" id="ocrTranslateBtn">Extract & Translate</button>
+                <div id="ocrSkeleton" class="hidden">
+                    <div class="skeleton skeleton-block"></div>
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+                <div id="ocrResult" class="result-area hidden">
+                    <p class="label">Extracted text</p>
+                    <div class="info-box" id="ocrExtracted"></div>
+                    <p class="label">Detected language</p>
+                    <div id="ocrDetected"></div>
+                    <p class="label">Translation</p>
+                    <div class="result-actions">
+                        <button class="btn-icon" id="ocrCopyBtn">Copy</button>
+                        <button class="btn-icon" id="ocrDownloadBtn">Download</button>
+                    </div>
+                    <div class="success-box" id="ocrTranslation"></div>
+                    <div class="romanized-box hidden" id="ocrRomanized"></div>
+                    <audio id="ocrAudio" controls class="audio-player"></audio>
+                </div>
+            </section>
+
+            <!-- LIVE TAB -->
+            <section class="tab-panel" id="panel-live">
+                <p class="live-description">
+                    Speak naturally. Your voice is transcribed and translated in real time.
+                </p>
+                <div class="two-col" style="align-items:end; margin-bottom:28px">
+                    <div class="col">
+                        <p class="label">Target language</p>
+                        <select id="liveLang"></select>
+                    </div>
+                    <div class="col">
+                        <p class="label">Controls</p>
+                        <div class="live-controls" style="display:flex; align-items:center; gap:12px">
+                            <button class="btn-primary" id="liveStartBtn">Start Listening</button>
+                            <button class="btn-secondary" id="liveClearBtn">Clear</button>
+                            <button class="btn-icon" id="liveCopyBtn">Copy</button>
+                            <span class="status-text" id="liveStatus">Ready</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="two-col panels">
+                    <div class="panel">
+                        <p class="label">Transcript</p>
+                        <div class="panel-content" id="liveTranscript"></div>
+                    </div>
+                    <div class="panel panel-accent">
+                        <p class="label">Translation</p>
+                        <div class="panel-content" id="liveTranslation"></div>
+                        <div class="panel-content romanized-box hidden" id="liveRomanized" style="margin-top:8px;"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/service-worker.js').catch(() => {});
+        }
+    </script>
+</body>
+</html>

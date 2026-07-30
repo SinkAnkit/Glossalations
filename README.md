@@ -1,49 +1,91 @@
-# 🗣️ Glossalations
+# Glossalations
 
-Seamless multilingual translation with audio playback — right in your browser.
+A multilingual translation web app with real-time voice transcription, OCR, conversation mode, and audio playback.
 
-## What It Does
+## Features
 
-Glossalations lets you translate text and PDF documents into 50+ languages with instant audio output. It supports both Indian and international languages, and lets you download the translated audio as MP3.
-
-### Features
-
-- **Text Translation** — Type or paste text, pick a target language, get instant translation + audio
-- **PDF Translation** — Upload a PDF, extract text, translate and listen
-- **Audio Playback & Download** — Every translation comes with text-to-speech audio you can play or save
-- **Language Detection** — Automatically identifies the source language
-- **Indian & World Languages** — Toggle between regional Indian languages and global ones
+- Text translation with auto-detected source language
+- PDF document extraction and translation
+- Voice clip recording, transcription, and translation
+- Image/OCR - upload photos of text (signs, menus, documents) to extract and translate
+- Live real-time transcription and translation via WebSocket
+- Conversation mode - two-way live translation for speaking with someone in another language
+- Romanized output for non-English translations (so you can read the pronunciation)
+- Translation history stored locally
+- Dark/light theme
+- Copy and download translations
+- Audio playback of translated text (TTS)
+- PWA support - installable on mobile
 
 ## Tech Stack
 
-| Component | Library |
-|-----------|---------|
-| UI | Streamlit |
-| Translation | deep-translator (Google Translate) |
-| Text-to-Speech | gTTS |
-| Language Detection | langdetect |
-| PDF Parsing | PyPDF2 |
+- Backend: Python, FastAPI, Uvicorn
+- Speech Recognition: Google Speech API (with optional Whisper fallback)
+- Translation: Google Translate (via deep-translator)
+- OCR: Tesseract
+- TTS: gTTS
+- Frontend: Vanilla HTML/CSS/JS
+- WebSocket for live streaming
 
-## Getting Started
+## Setup
+
+### Prerequisites
+
+- Python 3.10+
+- Tesseract OCR (for image translation)
+
+Install Tesseract:
 
 ```bash
-# Clone the repo
-git clone https://github.com/YOUR_USERNAME/Glossalations.git
-cd Glossalations
+# Ubuntu/Debian
+sudo apt-get install tesseract-ocr
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the app
-streamlit run app.py
+# macOS
+brew install tesseract
 ```
 
-The app will open at `http://localhost:8501`.
+### Install
 
-## Requirements
+```bash
+git clone https://github.com/SinkAnkit/Glossalations.git
+cd Glossalations
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-- Python 3.8+
-- Internet connection (for Google Translate & gTTS APIs)
+### Run
+
+```bash
+python main.py
+```
+
+Visit http://localhost:8000
+
+### Notes
+
+- Use `localhost:8000` (not `0.0.0.0:8000`) so the browser allows microphone access
+- For HTTPS (needed on some browsers for mic):
+  ```bash
+  openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"
+  uvicorn main:app --host 0.0.0.0 --port 8000 --ssl-keyfile key.pem --ssl-certfile cert.pem
+  ```
+
+## Project Structure
+
+```
+Glossalations/
+  main.py              - FastAPI backend (all API routes + WebSocket)
+  ws_server.py         - Standalone WebSocket server (legacy)
+  requirements.txt     - Python dependencies
+  static/
+    index.html         - Main app page
+    conversation.html  - Conversation mode page
+    app.js             - Frontend logic
+    style.css          - Styles (light/dark theme)
+    manifest.json      - PWA manifest
+    service-worker.js  - PWA offline caching
+```
 
 ## License
 

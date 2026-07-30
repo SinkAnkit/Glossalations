@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glossalations - Conversation</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </div>
+            <div class="sidebar-brand">Glossalations</div>
+            <p class="sidebar-caption">Breaking language barriers, one phrase at a time.</p>
+            <hr class="divider">
+            <nav class="sidebar-nav">
+                <a href="/">Translate</a>
+                <a href="/conversation" class="active">Conversation</a>
+            </nav>
+            <p class="sidebar-footer">Powered by Google Translate</p>
+        </aside>
+
+        <main class="content">
+            <h1 class="page-title">Conversation Mode</h1>
+            <p class="page-subtitle">Two-way live translation - take turns speaking in different languages</p>
+
+            <div class="convo-container">
+                <!-- Person A -->
+                <div class="convo-side" id="sideA">
+                    <p class="label">Person A - Language</p>
+                    <select id="langA" style="margin-bottom:12px"></select>
+                    <button class="btn-primary" id="speakBtnA">Speak</button>
+                    <span class="status-text" id="statusA" style="margin-left:12px">Ready</span>
+                    <div class="convo-messages" id="messagesA"></div>
+                </div>
+
+                <!-- Person B -->
+                <div class="convo-side" id="sideB">
+                    <p class="label">Person B - Language</p>
+                    <select id="langB" style="margin-bottom:12px"></select>
+                    <button class="btn-primary" id="speakBtnB">Speak</button>
+                    <span class="status-text" id="statusB" style="margin-left:12px">Ready</span>
+                    <div class="convo-messages" id="messagesB"></div>
+                </div>
+            </div>
+
+            <div style="margin-top:20px; display:flex; gap:12px;">
+                <button class="btn-secondary" id="clearConvo">Clear conversation</button>
+                <button class="btn-icon" id="copyConvo">Copy all</button>
+                <button class="btn-icon" id="downloadConvo">Download</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    // Toast
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => { toast.classList.add('toast-out'); setTimeout(() => toast.remove(), 200); }, 3000);
+    }
+
+    // Theme
+    const saved = localStorage.getItem('glossalations-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('themeToggle').addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('glossalations-theme', next);
+    });
+
+    // Load languages
+    async function loadLangs() {
+        const res = await fetch('/api/languages');
+        const langs = await res.json();
+        ['langA', 'langB'].forEach(id => {
+            const select = document.getElementById(id);
+            Object.entries(langs).sort((a, b) => a[1].localeCompare(b[1])).forEach(([code, name]) => {
+                const opt = document.createElement('option');
+                opt.value = code;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        });
+        document.getElementById('langA').value = 'en';
+        document.getElementById('langB').value = 'hi';
+    }
+    loadLangs();
+
+    const convoHistory = [];
+
+    // Speak function for each side
+    function setupSpeaker(btnId, statusId, sideId, messagesId, myLangId, otherLangId, otherMessagesId) {
+        const btn = document.getElementById(btnId);
+        const status = document.getElementById(statusId);
+        const side = document.getElementById(sideId);
+        const messages = document.getElementById(messagesId);
+        const otherMessages = document.getElementById(otherMessagesId);
+        let mediaRecorder = null;
+        let isRecording = false;
+
+        btn.addEventListener('click', async () => {
+            if (isRecording) {
+                // Stop
+                mediaRecorder.stop();
+                isRecording = false;
+                btn.textContent = 'Speak';
+                side.classList.remove('speaking');
+                status.textContent = 'Processing...';
+            } else {
+                // Start
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const chunks = [];
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+                    mediaRecorder.onstop = async () => {
+                        stream.getTracks().forEach(t => t.stop());
+                        const blob = new Blob(chunks, { type: 'audio/webm' });
+                        const myLang = document.getElementById(myLangId).value;
+                        const otherLang = document.getElementById(otherLangId).value;
+
+                        // Send to API
+                        const form = new FormData();
+                        form.append('file', blob, 'convo.webm');
+                        form.append('source_lang', myLang);
+                        form.append('target_lang', otherLang);
+
+                        try {
+                            const res = await fetch('/api/conversation', { method: 'POST', body: form });
+                            const data = await res.json();
+                            if (data.error) {
+                                showToast(data.error, 'error');
+                                status.textContent = 'Ready';
+                                return;
+                            }
+
+                            // Show original on my side
+                            const origDiv = document.createElement('div');
+                            origDiv.className = 'convo-message original';
+                            origDiv.textContent = data.transcript;
+                            messages.appendChild(origDiv);
+
+                            // Show translation on other side
+                            const transDiv = document.createElement('div');
+                            transDiv.className = 'convo-message translated';
+                            transDiv.innerHTML = data.translation +
+                                (data.romanized ? `<div class="romanized">${data.romanized}</div>` : '');
+                            otherMessages.appendChild(transDiv);
+
+                            // Auto-scroll
+                            messages.scrollTop = messages.scrollHeight;
+                            otherMessages.scrollTop = otherMessages.scrollHeight;
+
+                            // Play translated audio
+                            if (data.audio_url) {
+                                const audio = new Audio(data.audio_url);
+                                audio.play().catch(() => {});
+                            }
+
+                            convoHistory.push({
+                                speaker: sideId,
+                                original: data.transcript,
+                                translation: data.translation,
+                                romanized: data.romanized || ''
+                            });
+
+                            status.textContent = 'Ready';
+                        } catch (e) {
+                            showToast('Failed: ' + e.message, 'error');
+                            status.textContent = 'Ready';
+                        }
+                    };
+                    mediaRecorder.start();
+                    isRecording = true;
+                    btn.textContent = 'Stop';
+                    side.classList.add('speaking');
+                    status.textContent = 'Listening...';
+                } catch (e) {
+                    showToast('Microphone access denied', 'error');
+                }
+            }
+        });
+    }
+
+    setupSpeaker('speakBtnA', 'statusA', 'sideA', 'messagesA', 'langA', 'langB', 'messagesB');
+    setupSpeaker('speakBtnB', 'statusB', 'sideB', 'messagesB', 'langB', 'langA', 'messagesA');
+
+    // Clear
+    document.getElementById('clearConvo').addEventListener('click', () => {
+        document.getElementById('messagesA').innerHTML = '';
+        document.getElementById('messagesB').innerHTML = '';
+        convoHistory.length = 0;
+        showToast('Conversation cleared', 'info');
+    });
+
+    // Copy
+    document.getElementById('copyConvo').addEventListener('click', () => {
+        const text = convoHistory.map(h =>
+            `[${h.speaker === 'sideA' ? 'A' : 'B'}] ${h.original}\n→ ${h.translation}` +
+            (h.romanized ? ` (${h.romanized})` : '')
+        ).join('\n\n');
+        navigator.clipboard.writeText(text).then(() => showToast('Copied!', 'success'));
+    });
+
+    // Download
+    document.getElementById('downloadConvo').addEventListener('click', () => {
+        const text = convoHistory.map(h =>
+            `[${h.speaker === 'sideA' ? 'Person A' : 'Person B'}] ${h.original}\nTranslation: ${h.translation}` +
+            (h.romanized ? `\nRomanized: ${h.romanized}` : '')
+        ).join('\n\n---\n\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'conversation.txt'; a.click();
+        URL.revokeObjectURL(url);
+        showToast('Downloaded!', 'success');
+    });
+    </script>
+</body>
+</html>

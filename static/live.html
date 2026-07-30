@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossalations - Live Translation</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'IBM Plex Sans', sans-serif; background: #f8f9fa; color: #0e1116; padding: 32px; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { font-size: 0.875rem; color: #5b6370; margin-bottom: 24px; }
+    .label {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px; font-weight: 500;
+        letter-spacing: 0.06em; text-transform: uppercase;
+        color: #5b6370; margin-bottom: 8px;
+    }
+    .controls { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    button {
+        font-family: 'IBM Plex Sans', sans-serif;
+        font-size: 13px; font-weight: 500;
+        padding: 9px 18px; border-radius: 5px;
+        cursor: pointer; border: none;
+    }
+    .btn-start { background: #0e1116; color: #f8f9fa; }
+    .btn-start:hover { background: rgba(14,17,22,0.85); }
+    .btn-start.active { background: #1f7a4d; }
+    .btn { background: #fff; color: #0e1116; border: 1px solid rgba(14,17,22,0.14); }
+    .btn:hover { background: #eef0f2; }
+    #status {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px; letter-spacing: 0.06em;
+        text-transform: uppercase; color: #5b6370;
+    }
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .panel {
+        background: #fff; border: 1px solid rgba(14,17,22,0.08);
+        border-radius: 7px; padding: 16px; min-height: 150px;
+    }
+    .panel-translation { border-left: 3px solid #1f7a4d; }
+    .panel-content {
+        font-size: 15px; line-height: 1.6; margin-top: 8px;
+        white-space: pre-wrap; max-height: 300px; overflow-y: auto;
+    }
+    .latest { background: rgba(31,122,77,0.08); padding: 2px 4px; border-radius: 3px; }
+    select {
+        font-family: 'IBM Plex Sans', sans-serif;
+        font-size: 13px; padding: 7px 12px;
+        border: 1px solid rgba(14,17,22,0.14);
+        border-radius: 5px; background: #fff; color: #0e1116;
+    }
+    .error-box {
+        background: #fff3f3; border: 1px solid #ffcdd2; border-radius: 5px;
+        padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #991b1b;
+        display: none;
+    }
+    .info-box {
+        background: #f0f7f4; border: 1px solid #c8e6d5; border-radius: 5px;
+        padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #0e1116;
+        display: none;
+    }
+    @media (max-width: 600px) { .panels { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+    <h1>Glossalations Live</h1>
+    <p class="subtitle">Speak naturally. Transcript and translation update every few seconds as you talk.</p>
+
+    <div id="errorBox" class="error-box"></div>
+    <div id="infoBox" class="info-box"></div>
+
+    <div class="controls">
+        <p class="label" style="margin-bottom:0; margin-right:8px;">Target:</p>
+        <select id="targetLang">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="bn">Bengali</option>
+            <option value="te">Telugu</option>
+            <option value="mr">Marathi</option>
+            <option value="ta">Tamil</option>
+            <option value="ur">Urdu</option>
+            <option value="gu">Gujarati</option>
+            <option value="ml">Malayalam</option>
+            <option value="kn">Kannada</option>
+            <option value="pa">Punjabi</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="ru">Russian</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh-CN">Chinese</option>
+            <option value="ar">Arabic</option>
+        </select>
+    </div>
+
+    <div class="controls">
+        <button class="btn-start" id="startBtn">Start Listening</button>
+        <button class="btn" id="clearBtn">Clear</button>
+        <button class="btn" id="copyBtn">Copy Transcript</button>
+        <span id="status">Ready</span>
+    </div>
+
+    <div class="panels">
+        <div class="panel">
+            <p class="label">Transcript</p>
+            <div class="panel-content" id="transcriptBox"></div>
+        </div>
+        <div class="panel panel-translation">
+            <p class="label">Translation</p>
+            <div class="panel-content" id="translationBox"></div>
+            <div class="panel-content romanized hidden" id="romanizedBox" style="margin-top:8px; font-style:italic; opacity:0.8;"></div>
+        </div>
+    </div>
+
+<script>
+    const startBtn = document.getElementById('startBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const statusEl = document.getElementById('status');
+    const errorBox = document.getElementById('errorBox');
+    const infoBox = document.getElementById('infoBox');
+    const transcriptBox = document.getElementById('transcriptBox');
+    const translationBox = document.getElementById('translationBox');
+    const targetLangSelect = document.getElementById('targetLang');
+
+    let ws = null;
+    let mediaRecorder = null;
+    let isRecording = false;
+    let audioStream = null;
+
+    function showError(msg) {
+        errorBox.textContent = msg;
+        errorBox.style.display = 'block';
+        infoBox.style.display = 'none';
+    }
+
+    function showInfo(msg) {
+        infoBox.textContent = msg;
+        infoBox.style.display = 'block';
+        errorBox.style.display = 'none';
+    }
+
+    function hideMessages() {
+        errorBox.style.display = 'none';
+        infoBox.style.display = 'none';
+    }
+
+    // Connect to WebSocket server
+    function connectWebSocket() {
+        return new Promise((resolve, reject) => {
+            ws = new WebSocket('ws://localhost:8502');
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = () => {
+                // Send target language config
+                ws.send(JSON.stringify({ target_lang: targetLangSelect.value }));
+                resolve();
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.status === 'ok') {
+                    transcriptBox.textContent = data.transcript;
+                    translationBox.textContent = data.translation;
+                    const romanizedBox = document.getElementById('romanizedBox');
+                    if (data.romanized) {
+                        romanizedBox.textContent = data.romanized;
+                        romanizedBox.classList.remove('hidden');
+                    } else {
+                        romanizedBox.textContent = '';
+                        romanizedBox.classList.add('hidden');
+                    }
+                    statusEl.textContent = 'Listening...';
+                } else if (data.status === 'no_speech') {
+                    statusEl.textContent = 'Listening... (no speech detected)';
+                } else if (data.status === 'error') {
+                    statusEl.textContent = 'Error: ' + (data.message || 'unknown');
+                } else if (data.status === 'cleared') {
+                    transcriptBox.textContent = '';
+                    translationBox.textContent = '';
+                    document.getElementById('romanizedBox').textContent = '';
+                    document.getElementById('romanizedBox').classList.add('hidden');
+                }
+            };
+
+            ws.onerror = () => {
+                showError(
+                    'Cannot connect to transcription server. Make sure ws_server.py is running: ' +
+                    'python ws_server.py'
+                );
+                reject();
+            };
+
+            ws.onclose = () => {
+                if (isRecording) {
+                    stopRecording();
+                    showError('Server connection lost. Restart ws_server.py and try again.');
+                }
+            };
+        });
+    }
+
+    async function startRecording() {
+        hideMessages();
+
+        try {
+            await connectWebSocket();
+        } catch(e) {
+            return;
+        }
+
+        try {
+            audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true }
+            });
+        } catch(e) {
+            showError('Microphone access denied. Allow microphone in your browser settings.');
+            return;
+        }
+
+        // Use WAV-compatible format
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus' : 'audio/webm';
+
+        mediaRecorder = new MediaRecorder(audioStream, { mimeType: mimeType });
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                event.data.arrayBuffer().then(buffer => {
+                    ws.send(buffer);
+                });
+            }
+        };
+
+        // Send audio every 2 seconds for better responsiveness
+        mediaRecorder.start(2000);
+        isRecording = true;
+        startBtn.textContent = 'Stop';
+        startBtn.classList.add('active');
+        statusEl.textContent = 'Listening...';
+        showInfo('Speak now. Transcript updates every 3 seconds.');
+    }
+
+    function stopRecording() {
+        isRecording = false;
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        if (audioStream) {
+            audioStream.getTracks().forEach(track => track.stop());
+            audioStream = null;
+        }
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+        startBtn.textContent = 'Start Listening';
+        startBtn.classList.remove('active');
+        statusEl.textContent = 'Stopped';
+        hideMessages();
+    }
+
+    startBtn.addEventListener('click', () => {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    });
+
+    clearBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'clear' }));
+        }
+        transcriptBox.textContent = '';
+        translationBox.textContent = '';
+    });
+
+    copyBtn.addEventListener('click', () => {
+        const text = transcriptBox.textContent.trim();
+        if (text) {
+            navigator.clipboard.writeText(text);
+            statusEl.textContent = 'Copied!';
+            setTimeout(() => { statusEl.textContent = isRecording ? 'Listening...' : 'Ready'; }, 1000);
+        }
+    });
+
+    // Update target language when changed during recording
+    targetLangSelect.addEventListener('change', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ target_lang: targetLangSelect.value }));
+        }
+    });
+</script>
+</body>
+</html>

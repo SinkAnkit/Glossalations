@@ -32,6 +32,9 @@ user_detect.mp3
 user_trans.mp3
 translated_pdf.mp3
 
+# SSL certs
+*.pem
+
 # IDEs
 .vscode/
 .idea/
