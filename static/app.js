@@ -284,6 +284,31 @@ function initTextTab() {
         const romanized = document.getElementById('textRomanized').textContent;
         downloadText(translation + (romanized ? '\n\nRomanized:\n' + romanized : ''));
     });
+
+    document.getElementById('textSummarizeBtn').addEventListener('click', async () => {
+        const text = document.getElementById('textInput').value.trim();
+        if (!text) { showToast('No text to summarize', 'info'); return; }
+
+        const summaryEl = document.getElementById('textSummary');
+        summaryEl.textContent = 'Summarizing...';
+        summaryEl.classList.remove('hidden');
+
+        try {
+            const form = new FormData();
+            form.append('text', text);
+            const res = await fetch('/api/summarize', { method: 'POST', body: form });
+            const data = await res.json();
+            if (data.error) {
+                showToast(data.error, 'error');
+                summaryEl.classList.add('hidden');
+            } else {
+                summaryEl.textContent = 'Summary: ' + data.summary;
+            }
+        } catch (e) {
+            showToast('Summarization failed', 'error');
+            summaryEl.classList.add('hidden');
+        }
+    });
 }
 
 // === PDF TAB ===
@@ -559,6 +584,25 @@ function initLiveTab() {
     copyBtn.addEventListener('click', () => {
         const text = transcriptEl.textContent + '\n\n' + translationEl.textContent;
         copyText(text);
+    });
+
+    document.getElementById('liveSummarizeBtn').addEventListener('click', async () => {
+        const text = transcriptEl.textContent.trim();
+        if (!text) { showToast('No transcript to summarize', 'info'); return; }
+
+        try {
+            const form = new FormData();
+            form.append('text', text);
+            const res = await fetch('/api/summarize', { method: 'POST', body: form });
+            const data = await res.json();
+            if (data.error) {
+                showToast(data.error, 'error');
+            } else {
+                showToast('Summary: ' + data.summary, 'info');
+            }
+        } catch (e) {
+            showToast('Summarization failed', 'error');
+        }
     });
 
     langSelect.addEventListener('change', () => {

@@ -12,7 +12,9 @@ A multilingual translation web app with real-time voice transcription, OCR, conv
 - Image/OCR - upload photos of text (signs, menus, documents) to extract and translate
 - Live real-time transcription and translation via WebSocket
 - Conversation mode - two-way live translation for speaking with someone in another language
-- Romanized output for non-English translations (so you can read the pronunciation)
+- AI-powered summarization of transcriptions and text
+- Whisper-large-v3-turbo transcription via Groq (high accuracy, Indic language support)
+- Romanized output for non-English translations
 - Translation history stored locally
 - Dark/light theme
 - Copy and download translations
@@ -22,7 +24,8 @@ A multilingual translation web app with real-time voice transcription, OCR, conv
 ## Tech Stack
 
 - Backend: Python, FastAPI, Uvicorn
-- Speech Recognition: Google Speech API (with optional Whisper fallback)
+- Speech Recognition: Groq Whisper API (whisper-large-v3-turbo) with Google Speech fallback
+- Summarization: Groq LLM (Llama 3.1)
 - Translation: Google Translate (via deep-translator)
 - OCR: Tesseract
 - TTS: gTTS
@@ -35,6 +38,7 @@ A multilingual translation web app with real-time voice transcription, OCR, conv
 
 - Python 3.10+
 - Tesseract OCR (for image translation)
+- Groq API key (free at https://console.groq.com)
 
 Install Tesseract:
 
@@ -56,6 +60,12 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Environment Variables
+
+```bash
+export GROQ_API_KEY="your-groq-api-key-here"
+```
+
 ### Run
 
 ```bash
@@ -67,6 +77,7 @@ Visit http://localhost:8000
 ### Notes
 
 - Use `localhost:8000` (not `0.0.0.0:8000`) so the browser allows microphone access
+- If GROQ_API_KEY is not set, transcription falls back to Google Speech API (less accurate)
 - For HTTPS (needed on some browsers for mic):
   ```bash
   openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"
@@ -78,8 +89,8 @@ Visit http://localhost:8000
 ```
 Glossalations/
   main.py              - FastAPI backend (all API routes + WebSocket)
-  ws_server.py         - Standalone WebSocket server (legacy)
   requirements.txt     - Python dependencies
+  Dockerfile           - Docker config for deployment
   static/
     index.html         - Main app page
     conversation.html  - Conversation mode page
@@ -88,6 +99,10 @@ Glossalations/
     manifest.json      - PWA manifest
     service-worker.js  - PWA offline caching
 ```
+
+## Deployment
+
+Deployed on Render using Docker. The Dockerfile installs tesseract-ocr and ffmpeg as system dependencies. Set `GROQ_API_KEY` as an environment variable in Render's dashboard.
 
 ## License
 

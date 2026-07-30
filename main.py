@@ -1,12 +1,14 @@
 """
-Glossalations — FastAPI backend
+Glossalations - FastAPI backend
 Serves the frontend and handles translation, PDF extraction, voice clip, OCR,
-conversation mode, and live transcription with caching and Whisper fallback.
+conversation mode, live transcription, and AI summarization.
+Uses Groq Whisper API for high-quality multilingual transcription.
 """
 import io
 import os
 import hashlib
 import tempfile
+import httpx
 from pathlib import Path
 from collections import OrderedDict
 
@@ -26,7 +28,11 @@ app = FastAPI(title="Glossalations")
 # Static directory path
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Groq API key (set as environment variable)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
 recognizer = sr.Recognizer()
+
 
 # --- Translation Cache (LRU, in-memory) ---
 class TranslationCache:
@@ -50,48 +56,97 @@ class TranslationCache:
 
 cache = TranslationCache()
 
-# --- Whisper Fallback ---
-whisper_model = None
 
-def load_whisper():
-    """Try to load faster-whisper model. Returns None if not available."""
-    global whisper_model
-    if whisper_model is not None:
-        return whisper_model
-    try:
-        from faster_whisper import WhisperModel
-        whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
-        print("Whisper model loaded as fallback")
-        return whisper_model
-    except ImportError:
-        print("faster-whisper not installed — using Google only")
-        return None
-    except Exception as e:
-        print(f"Whisper load failed: {e}")
+# --- Groq Whisper Transcription ---
+
+def transcribe_with_groq(audio_bytes, format="wav"):
+    """Transcribe audio using Groq Whisper API (whisper-large-v3-turbo)."""
+    if not GROQ_API_KEY:
         return None
 
-def transcribe_with_whisper(wav_buffer):
-    """Fallback transcription using Whisper."""
-    model = load_whisper()
-    if model is None:
-        return None
-    # Save to temp file for whisper
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    tmp.write(wav_buffer.getvalue())
+    suffix = f".{format}"
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    tmp.write(audio_bytes)
     tmp.close()
+
     try:
-        segments, _ = model.transcribe(tmp.name, beam_size=5)
-        text = " ".join([seg.text for seg in segments]).strip()
-        return text if text else None
-    except Exception:
+        with open(tmp.name, "rb") as f:
+            response = httpx.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                files={"file": (f"audio{suffix}", f, f"audio/{format}")},
+                data={
+                    "model": "whisper-large-v3-turbo",
+                    "response_format": "json"
+                },
+                timeout=30.0
+            )
+
+        if response.status_code == 200:
+            result = response.json()
+            text = result.get("text", "").strip()
+            return text if text else None
+        else:
+            print(f"Groq Whisper error: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"Groq Whisper failed: {e}")
         return None
     finally:
         os.unlink(tmp.name)
 
+
+# --- Groq LLM Summarization ---
+
+def summarize_text(text, language="en"):
+    """Summarize text using Groq LLM API."""
+    if not GROQ_API_KEY:
+        return None
+
+    lang_instruction = ""
+    if language and language != "en":
+        lang_instruction = " Respond in the same language as the input text."
+
+    try:
+        response = httpx.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": f"You are a concise summarizer. Provide a brief summary of the given text in 2-3 sentences. Capture the key points.{lang_instruction}"
+                    },
+                    {
+                        "role": "user",
+                        "content": text
+                    }
+                ],
+                "max_tokens": 300,
+                "temperature": 0.3
+            },
+            timeout=15.0
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            return result["choices"][0]["message"]["content"].strip()
+        else:
+            print(f"Groq LLM error: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Groq summarize failed: {e}")
+        return None
+
+
 # --- OCR ---
+
 def extract_text_from_image(image_bytes):
-    """Extract text from image using pytesseract or easyocr."""
-    # Try pytesseract first (faster, lighter)
+    """Extract text from image using pytesseract."""
     try:
         import pytesseract
         from PIL import Image
@@ -103,20 +158,7 @@ def extract_text_from_image(image_bytes):
         pass
     except Exception:
         pass
-
-    # Fallback to easyocr
-    try:
-        import easyocr
-        reader = easyocr.Reader(['en', 'hi', 'ta', 'te', 'bn', 'mr', 'ur', 'ar',
-                                  'fr', 'de', 'es', 'it', 'pt', 'ru', 'ja', 'ko', 'zh-sim'],
-                                 gpu=False)
-        results = reader.readtext(image_bytes)
-        text = " ".join([r[1] for r in results])
-        return text.strip() if text.strip() else None
-    except ImportError:
-        return None
-    except Exception:
-        return None
+    return None
 
 
 # --- Utility ---
@@ -137,14 +179,21 @@ def translate_text_cached(text, target):
     return translation, romanized
 
 def transcribe_audio(audio_bytes, format="webm"):
-    """Transcribe audio with Google, fallback to Whisper."""
+    """Transcribe audio: Groq Whisper first, Google Speech fallback."""
     audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=format)
     audio_segment = audio_segment.set_channels(1).set_frame_rate(16000)
     wav_buffer = io.BytesIO()
     audio_segment.export(wav_buffer, format="wav")
     wav_buffer.seek(0)
+    wav_bytes = wav_buffer.getvalue()
 
-    # Try Google first
+    # Try Groq Whisper first (better accuracy, Indic language support)
+    groq_result = transcribe_with_groq(wav_bytes, format="wav")
+    if groq_result:
+        return groq_result
+
+    # Fallback to Google Speech
+    wav_buffer.seek(0)
     try:
         with sr.AudioFile(wav_buffer) as source:
             audio_data = recognizer.record(source)
@@ -154,12 +203,6 @@ def transcribe_audio(audio_bytes, format="webm"):
         pass
     except sr.RequestError:
         pass
-
-    # Fallback to Whisper
-    wav_buffer.seek(0)
-    whisper_text = transcribe_with_whisper(wav_buffer)
-    if whisper_text:
-        return whisper_text
 
     return None
 
@@ -333,10 +376,27 @@ async def conversation_translate(
     return JSONResponse(content=response)
 
 
+@app.post("/api/summarize")
+async def summarize_endpoint(text: str = Form(...)):
+    """Summarize text using Groq LLM."""
+    if not text.strip():
+        return JSONResponse(content={"error": "No text provided"}, status_code=400)
+
+    if not GROQ_API_KEY:
+        return JSONResponse(content={"error": "Summarization not available (API key not configured)"}, status_code=503)
+
+    detected = detect(text)
+    summary = summarize_text(text, language=detected)
+
+    if not summary:
+        return JSONResponse(content={"error": "Summarization failed. Try again."}, status_code=500)
+
+    return JSONResponse(content={"summary": summary, "language": detected})
+
+
 @app.get("/api/audio/{filename}")
 async def get_audio(filename: str):
     """Serve generated audio files."""
-    # Sanitize filename to prevent path traversal
     filename = os.path.basename(filename)
     filepath = f"/tmp/{filename}"
     if os.path.exists(filepath):
