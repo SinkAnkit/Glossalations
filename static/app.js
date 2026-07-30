@@ -83,24 +83,27 @@ function renderHistory() {
         container.innerHTML = '';
         return;
     }
-    let html = '<p class="label">Recent translations</p>';
+    let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px"><p class="label" style="margin:0">Recent translations</p><button class="btn-icon" id="clearHistoryBtn" style="font-size:11px">Clear all</button></div>';
     history.slice(0, 5).forEach((item, i) => {
         const langName = LANG_NAMES[item.targetLang] || item.targetLang;
         const time = new Date(item.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
         html += `<div class="history-item" data-index="${i}">
-            <div class="history-source">${escapeHtml(item.source)}</div>
-            <div class="history-result">${escapeHtml(item.translation)}</div>
-            <div class="history-meta">→ ${langName} · ${time}</div>
+            <div style="display:flex; justify-content:space-between; align-items:start">
+                <div style="flex:1">
+                    <div class="history-source">${escapeHtml(item.source)}</div>
+                    <div class="history-result">${escapeHtml(item.translation)}</div>
+                    <div class="history-meta">to ${langName} - ${time}</div>
+                </div>
+                <button class="btn-icon history-delete" data-index="${i}" style="font-size:10px; padding:4px 8px; margin-left:8px">x</button>
+            </div>
         </div>`;
     });
-    if (history.length > 5) {
-        html += `<button class="btn-secondary" style="margin-top:8px;font-size:12px" id="clearHistoryBtn">Clear history</button>`;
-    }
     container.innerHTML = html;
 
     // Click to restore
     container.querySelectorAll('.history-item').forEach(el => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', (e) => {
+            if (e.target.classList.contains('history-delete')) return;
             const idx = parseInt(el.dataset.index);
             const item = history[idx];
             if (item) {
@@ -110,14 +113,24 @@ function renderHistory() {
         });
     });
 
-    const clearBtn = document.getElementById('clearHistoryBtn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            localStorage.removeItem('glossalations-history');
+    // Delete individual items
+    container.querySelectorAll('.history-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = parseInt(btn.dataset.index);
+            const h = getHistory();
+            h.splice(idx, 1);
+            localStorage.setItem('glossalations-history', JSON.stringify(h));
             renderHistory();
-            showToast('History cleared', 'info');
+            showToast('Removed', 'info');
         });
-    }
+    });
+
+    document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+        localStorage.removeItem('glossalations-history');
+        renderHistory();
+        showToast('History cleared', 'info');
+    });
 }
 
 function escapeHtml(str) {
